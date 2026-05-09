@@ -134,6 +134,7 @@ docker-compose up -d
 5) 前端暴露：如需在前端选择模型，补充模型枚举/下拉项即可，无需改后端协议。
 
 
+
 ## 9. 关于我 👤
 - 学历：UNSW IT 硕士 + 西南大学本科。
 - 职业：Java 后端程序员。
@@ -141,4 +142,8 @@ docker-compose up -d
 - 微信号：LQF-dev（随时欢迎骚扰）。
 
 ## 10. 许可证 📄
-本项目使用 Apache License 2.0。
+本项目使用 Apache License 2.0
+
+## 🏅 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=LQF-dev/smart-hr&type=Date)](https://www.star-history.com/#LQF-dev/smart-hr&Date)
