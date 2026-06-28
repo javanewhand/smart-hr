@@ -229,11 +229,11 @@ MERGE (risk:Skill {name: '风险管理', level: 3, description: '风险管理', 
 MERGE (scrum)-[:REQUIRES]->(agile)
 
 // 项目管理技能分类
-MERGE (scrum)-[:BELONGS_TO]->(c7)
-MERGE (agile)-[:BELONGS_TO]->(c7)
-MERGE (jira)-[:BELONGS_TO]->(c7)
-MERGE (requirement)-[:BELONGS_TO]->(c7)
-MERGE (risk)-[:BELONGS_TO]->(c7)
+MERGE (scrum)-[:BELONGS_TO]->(c7);
+MERGE (agile)-[:BELONGS_TO]->(c7);
+MERGE (jira)-[:BELONGS_TO]->(c7);
+MERGE (requirement)-[:BELONGS_TO]->(c7);
+MERGE (risk)-[:BELONGS_TO]->(c7);
 
 // ========== 通用能力 ==========
 MERGE (comm:Skill {name: '沟通能力', level: 1, description: '沟通表达能力', keywords: ['表达', '倾听']})
@@ -243,11 +243,11 @@ MERGE (problem:Skill {name: '问题解决', level: 2, description: '问题分析
 MERGE (logic:Skill {name: '逻辑思维', level: 2, description: '逻辑思维能力', keywords: ['推理', '分析']})
 
 // 通用能力分类
-MERGE (comm)-[:BELONGS_TO]->(c8)
-MERGE (team)-[:BELONGS_TO]->(c8)
-MERGE (learn)-[:BELONGS_TO]->(c8)
-MERGE (problem)-[:BELONGS_TO]->(c8)
-MERGE (logic)-[:BELONGS_TO]->(c8)
+MERGE (comm)-[:BELONGS_TO]->(c8);
+MERGE (team)-[:BELONGS_TO]->(c8);
+MERGE (learn)-[:BELONGS_TO]->(c8);
+MERGE (problem)-[:BELONGS_TO]->(c8);
+MERGE (logic)-[:BELONGS_TO]->(c8);
 
 // 输出统计
 MATCH (s:Skill) RETURN count(s) as totalSkills;

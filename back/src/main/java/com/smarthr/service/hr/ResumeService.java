@@ -6,6 +6,7 @@
  */
 package com.smarthr.service.hr;
 
+import com.smarthr.config.MinioProperties;
 import com.smarthr.dto.resume.ResumeDTO;
 import com.smarthr.dto.resume.ResumeUploadResponse;
 import com.smarthr.entity.Resume;
@@ -16,9 +17,11 @@ import com.smarthr.service.document.SkillExtractor;
 import com.smarthr.service.rag.EmbeddingService;
 import com.smarthr.service.vector.MilvusVectorStore;
 import com.smarthr.service.vector.VectorDocument;
-import lombok.RequiredArgsConstructor;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,17 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResumeService {
 
     private final ResumeRepository resumeRepository;
@@ -45,9 +44,24 @@ public class ResumeService {
     private final SkillExtractor skillExtractor;
     private final MilvusVectorStore milvusVectorStore;
     private final EmbeddingService embeddingService;
+    private final MinioClient minioClient;
+    private final MinioProperties minioProperties;
 
-    @Value("${smart-hr.upload.resume-path:./uploads/resumes}")
-    private String uploadPath;
+    public ResumeService(ResumeRepository resumeRepository,
+                         DocumentParser documentParser,
+                         SkillExtractor skillExtractor,
+                         MilvusVectorStore milvusVectorStore,
+                         EmbeddingService embeddingService,
+                         MinioClient minioClient,
+                         MinioProperties minioProperties) {
+        this.resumeRepository = resumeRepository;
+        this.documentParser = documentParser;
+        this.skillExtractor = skillExtractor;
+        this.milvusVectorStore = milvusVectorStore;
+        this.embeddingService = embeddingService;
+        this.minioClient = minioClient;
+        this.minioProperties = minioProperties;
+    }
 
     /**
      * 上传并解析简历
@@ -65,11 +79,14 @@ public class ResumeService {
             List<String> extractedSkills = skillExtractor.extractSkills(content, userId);
             List<String> normalizedSkills = skillExtractor.normalizeSkills(extractedSkills);
 
+            // 上传文件到 MinIO
+            String objectName = uploadToMinio(file, userId);
+
             // 保存简历记录
             Resume resume = Resume.builder()
                     .userId(userId)
                     .fileName(file.getOriginalFilename())
-                    .filePath(null) // 当前版本不落盘原文件
+                    .filePath(objectName)
                     .content(content)
                     .extractedSkills(normalizedSkills)
                     .createdAt(LocalDateTime.now())
@@ -137,15 +154,8 @@ public class ResumeService {
         Resume resume = resumeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("简历不存在"));
 
-        // 删除文件
-        if (resume.getFilePath() != null && !resume.getFilePath().isBlank()) {
-            try {
-                Path path = Paths.get(resume.getFilePath());
-                Files.deleteIfExists(path);
-            } catch (IOException e) {
-                log.warn("Failed to delete resume file: {}", resume.getFilePath());
-            }
-        }
+        // 从 MinIO 删除文件
+        deleteFromMinio(resume.getFilePath());
 
         // 删除向量
         milvusVectorStore.deleteDocument("resume_" + id);
@@ -184,25 +194,67 @@ public class ResumeService {
     }
 
     /**
-     * 保存文件到本地
+     * 上传文件到 MinIO
      */
-    private String saveFile(MultipartFile file, Long userId) throws IOException {
-        // 创建目录
-        Path dirPath = Paths.get(uploadPath, String.valueOf(userId));
-        Files.createDirectories(dirPath);
-
-        // 生成文件名
+    private String uploadToMinio(MultipartFile file, Long userId) throws Exception {
+        String extension = "";
         String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename != null && originalFilename.contains(".") 
-                ? originalFilename.substring(originalFilename.lastIndexOf(".")) 
-                : "";
-        String newFilename = UUID.randomUUID().toString() + extension;
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String objectName = userId + "/" + UUID.randomUUID() + extension;
 
-        // 保存文件
-        Path filePath = dirPath.resolve(newFilename);
-        file.transferTo(filePath.toFile());
+        minioClient.putObject(PutObjectArgs.builder()
+                .bucket(minioProperties.getBucket())
+                .object(objectName)
+                .stream(file.getInputStream(), file.getSize(), -1)
+                .contentType(file.getContentType())
+                .build());
 
-        return filePath.toString();
+        log.info("Uploaded resume to MinIO: {}/{}", minioProperties.getBucket(), objectName);
+        return objectName;
+    }
+
+    /**
+     * 从 MinIO 删除文件
+     */
+    private void deleteFromMinio(String objectName) {
+        if (objectName == null || objectName.isBlank()) {
+            return;
+        }
+        try {
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(minioProperties.getBucket())
+                    .object(objectName)
+                    .build());
+            log.info("Deleted resume from MinIO: {}", objectName);
+        } catch (Exception e) {
+            log.warn("Failed to delete resume from MinIO: {}", objectName, e);
+        }
+    }
+
+    /**
+     * 从 MinIO 获取文件流（供下载/预览使用）
+     */
+    public InputStream getFileStream(String objectName) {
+        try {
+            return minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(minioProperties.getBucket())
+                    .object(objectName)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to get resume from MinIO: {}", objectName, e);
+            throw new BusinessException("获取简历文件失败");
+        }
+    }
+
+    /**
+     * 获取简历文件名
+     */
+    public String getFileName(Long id) {
+        Resume resume = resumeRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("简历不存在"));
+        return resume.getFileName();
     }
 
     /**

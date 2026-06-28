@@ -1,10 +1,15 @@
 # 开发环境配置
+smart-hr:
+  ai:
+    default-model: openai
+    aliyun:
+      enabled: false
+
 spring:
   jpa:
     show-sql: true
     hibernate:
       ddl-auto: update
-
 logging:
   level:
     root: INFO
@@ -12,6 +17,7 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
 
 springdoc:
   api-docs:

@@ -91,14 +91,21 @@ public class AIModelAutoConfiguration {
     @Primary
     public EmbeddingModel primaryEmbeddingModel(@Qualifier("dashscopeEmbeddingModel") ObjectProvider<EmbeddingModel> dashscopeEmbeddingModel,
                                                 @Qualifier("openAiEmbeddingModel") ObjectProvider<EmbeddingModel> openAiEmbeddingModel) {
-        // 优先使用阿里云，失败再使用 OpenAI（与模型默认路由保持一致）
-        EmbeddingModel dashscope = dashscopeEmbeddingModel.getIfAvailable();
-        if (dashscope != null) {
-            return dashscope;
+        try {
+            EmbeddingModel dashscope = dashscopeEmbeddingModel.getIfAvailable();
+            if (dashscope != null) {
+                return dashscope;
+            }
+        } catch (Exception e) {
+            log.warn("DashScope EmbeddingModel unavailable: {}", e.getMessage());
         }
-        EmbeddingModel openai = openAiEmbeddingModel.getIfAvailable();
-        if (openai != null) {
-            return openai;
+        try {
+            EmbeddingModel openai = openAiEmbeddingModel.getIfAvailable();
+            if (openai != null) {
+                return openai;
+            }
+        } catch (Exception e) {
+            log.warn("OpenAI EmbeddingModel unavailable: {}", e.getMessage());
         }
         throw new IllegalStateException("No EmbeddingModel available. Check DashScope/OpenAI configuration.");
     }

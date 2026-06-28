@@ -11,14 +11,21 @@ import com.smarthr.dto.resume.ResumeDTO;
 import com.smarthr.dto.resume.ResumeUploadResponse;
 import com.smarthr.security.UserPrincipal;
 import com.smarthr.service.hr.ResumeService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -79,6 +86,30 @@ public class ResumeController {
     public ResponseEntity<ApiResponse<List<ResumeDTO>>> getAllResumes() {
         List<ResumeDTO> resumes = resumeService.getAllResumes();
         return ResponseEntity.ok(ApiResponse.success(resumes));
+    }
+
+    /**
+     * 下载/预览简历源文件
+     */
+    @GetMapping("/{id}/download")
+    public void downloadResume(@PathVariable Long id, HttpServletResponse response) {
+        ResumeDTO resume = resumeService.getResume(id);
+
+        if (resume.getFilePath() == null || resume.getFilePath().isBlank()) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        try (InputStream inputStream = resumeService.getFileStream(resume.getFilePath())) {
+            String encodedFilename = URLEncoder.encode(resume.getFileName(), StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20");
+            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                    "attachment; filename*=UTF-8''" + encodedFilename);
+            StreamUtils.copy(inputStream, response.getOutputStream());
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
     }
 }
 
