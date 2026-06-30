@@ -64,8 +64,14 @@ public class MilvusVectorStore implements VectorStore {
             
             boolean exists = milvusClient.hasCollection(hasReq);
             
-            if (!exists) {
-                log.info("Creating Milvus collection: {}", collectionName);
+            if (exists) {
+                milvusClient.dropCollection(io.milvus.v2.service.collection.request.DropCollectionReq.builder()
+                        .collectionName(collectionName)
+                        .build());
+                log.info("Dropped existing collection {} for recreation", collectionName);
+            }
+
+            log.info("Creating Milvus collection: {}", collectionName);
                 
                 // 创建 Schema
                 CreateCollectionReq.CollectionSchema schema = CreateCollectionReq.CollectionSchema.builder()
@@ -117,21 +123,15 @@ public class MilvusVectorStore implements VectorStore {
                 
                 milvusClient.createCollection(createReq);
                 log.info("Milvus collection created: {}", collectionName);
-            } else {
-                log.info("Milvus collection already exists: {}", collectionName);
-            }
 
-            // 仅在新建或显式要求时 load，避免启动时阻塞
-            if (!exists || forceReload) {
-                LoadCollectionReq loadReq = LoadCollectionReq.builder()
-                        .collectionName(collectionName)
-                        .build();
-                try {
-                    milvusClient.loadCollection(loadReq);
-                    log.info("Milvus collection loaded: {}", collectionName);
-                } catch (Exception loadEx) {
-                    log.warn("Load Milvus collection {} failed (non-fatal): {}", collectionName, loadEx.getMessage());
-                }
+            LoadCollectionReq loadReq = LoadCollectionReq.builder()
+                    .collectionName(collectionName)
+                    .build();
+            try {
+                milvusClient.loadCollection(loadReq);
+                log.info("Milvus collection loaded: {}", collectionName);
+            } catch (Exception loadEx) {
+                log.warn("Load Milvus collection {} failed (non-fatal): {}", collectionName, loadEx.getMessage());
             }
 
         } catch (Exception e) {

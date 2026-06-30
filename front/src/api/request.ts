@@ -18,7 +18,7 @@ interface ApiResponse<T = unknown> {
 
 const request = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
   },

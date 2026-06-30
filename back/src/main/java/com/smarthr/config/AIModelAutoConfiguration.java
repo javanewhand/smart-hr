@@ -39,15 +39,12 @@ public class AIModelAutoConfiguration {
 
     /**
      * 创建阿里云 ChatClient Bean
-     * 使用 Spring AI Alibaba 自动配置的 ChatModel（dashscopeChatModel）
      */
     @Bean
     @ConditionalOnProperty(prefix = "smart-hr.ai.aliyun", name = "enabled", havingValue = "true")
     public ChatClient dashscopeChatClient(@Qualifier("dashscopeChatModel") ChatModel chatModel) {
         return ChatClient.builder(chatModel).build();
     }
-
-
 
     /**
      * 创建 OpenAI ChatClient Bean
@@ -60,7 +57,6 @@ public class AIModelAutoConfiguration {
 
     /**
      * 阿里云百炼模型适配器
-     * 使用 Spring AI Alibaba 自动注入的 ChatModel 和 EmbeddingModel
      */
     @Bean
     @ConditionalOnProperty(prefix = "smart-hr.ai.aliyun", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -71,6 +67,7 @@ public class AIModelAutoConfiguration {
         log.info("Aliyun adapter registered successfully");
         return adapter;
     }
+
     /**
      * OpenAI 模型适配器
      */
@@ -85,7 +82,7 @@ public class AIModelAutoConfiguration {
     }
 
     /**
-     * 默认 EmbeddingModel，根据 default-model 选择；解决多模型同时启用时的注入歧义。
+     * 默认 EmbeddingModel，根据 default-model 选择
      */
     @Bean
     @Primary

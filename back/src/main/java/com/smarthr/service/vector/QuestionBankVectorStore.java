@@ -63,54 +63,57 @@ public class QuestionBankVectorStore implements VectorStore {
                     HasCollectionReq.builder().collectionName(collectionName).build()
             );
 
-            if (!exists) {
-                log.info("Creating Milvus question collection: {}", collectionName);
-
-                CreateCollectionReq.CollectionSchema schema = CreateCollectionReq.CollectionSchema.builder().build();
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(ID_FIELD)
-                        .dataType(DataType.VarChar)
-                        .maxLength(128)
-                        .isPrimaryKey(true)
-                        .build());
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(CONTENT_FIELD)
-                        .dataType(DataType.VarChar)
-                        .maxLength(65535)
-                        .build());
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(VECTOR_FIELD)
-                        .dataType(DataType.FloatVector)
-                        .dimension(properties.getEmbeddingDimension())
-                        .build());
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(METADATA_FIELD)
-                        .dataType(DataType.VarChar)
-                        .maxLength(65535)
-                        .build());
-
-                IndexParam indexParam = IndexParam.builder()
-                        .fieldName(VECTOR_FIELD)
-                        .indexType(IndexParam.IndexType.IVF_FLAT)
-                        .metricType(IndexParam.MetricType.COSINE)
-                        .extraParams(Map.of("nlist", properties.getNlist()))
-                        .build();
-
-                milvusClient.createCollection(CreateCollectionReq.builder()
+            if (exists) {
+                milvusClient.dropCollection(io.milvus.v2.service.collection.request.DropCollectionReq.builder()
                         .collectionName(collectionName)
-                        .collectionSchema(schema)
-                        .indexParams(Collections.singletonList(indexParam))
                         .build());
+                log.info("Dropped existing question collection {} for recreation", collectionName);
             }
 
-            if (!exists || forceReload) {
-                try {
-                    milvusClient.loadCollection(LoadCollectionReq.builder()
-                            .collectionName(collectionName)
-                            .build());
-                } catch (Exception loadEx) {
-                    log.warn("Load Milvus question collection {} failed (non-fatal): {}", collectionName, loadEx.getMessage());
-                }
+            log.info("Creating Milvus question collection: {}", collectionName);
+
+            CreateCollectionReq.CollectionSchema schema = CreateCollectionReq.CollectionSchema.builder().build();
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(ID_FIELD)
+                    .dataType(DataType.VarChar)
+                    .maxLength(128)
+                    .isPrimaryKey(true)
+                    .build());
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(CONTENT_FIELD)
+                    .dataType(DataType.VarChar)
+                    .maxLength(65535)
+                    .build());
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(VECTOR_FIELD)
+                    .dataType(DataType.FloatVector)
+                    .dimension(properties.getEmbeddingDimension())
+                    .build());
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(METADATA_FIELD)
+                    .dataType(DataType.VarChar)
+                    .maxLength(65535)
+                    .build());
+
+            IndexParam indexParam = IndexParam.builder()
+                    .fieldName(VECTOR_FIELD)
+                    .indexType(IndexParam.IndexType.IVF_FLAT)
+                    .metricType(IndexParam.MetricType.COSINE)
+                    .extraParams(Map.of("nlist", properties.getNlist()))
+                    .build();
+
+            milvusClient.createCollection(CreateCollectionReq.builder()
+                    .collectionName(collectionName)
+                    .collectionSchema(schema)
+                    .indexParams(Collections.singletonList(indexParam))
+                    .build());
+
+            try {
+                milvusClient.loadCollection(LoadCollectionReq.builder()
+                        .collectionName(collectionName)
+                        .build());
+            } catch (Exception loadEx) {
+                log.warn("Load Milvus question collection {} failed (non-fatal): {}", collectionName, loadEx.getMessage());
             }
         } catch (Exception e) {
             log.error("Failed to init question collection {}: {}", collectionName, e.getMessage(), e);
