@@ -18,6 +18,7 @@ const ResumeUpload = lazy(() => import('./pages/HR/ResumeUpload'))
 const PositionManage = lazy(() => import('./pages/HR/PositionManage'))
 const MatchResult = lazy(() => import('./pages/HR/MatchResult'))
 const MatchHistory = lazy(() => import('./pages/HR/MatchHistory'))
+const SkillGraph = lazy(() => import('./pages/HR/SkillGraph'))
 const InterviewerDashboard = lazy(() => import('./pages/Interviewer/Dashboard'))
 const GenerateQuestions = lazy(() => import('./pages/Interviewer/GenerateQuestions'))
 const QuestionHistory = lazy(() => import('./pages/Interviewer/QuestionHistory'))
@@ -118,6 +119,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['HR']}>
                   <MatchHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="skill-graph"
+              element={
+                <ProtectedRoute allowedRoles={['HR']}>
+                  <SkillGraph />
                 </ProtectedRoute>
               }
             />

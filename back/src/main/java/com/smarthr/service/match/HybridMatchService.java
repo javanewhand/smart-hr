@@ -11,7 +11,7 @@ package com.smarthr.service.match;
 import com.smarthr.service.ai.ModelRouter;
 import com.smarthr.service.graph.SkillGraphService;
 import com.smarthr.service.graph.SkillMatchResult;
-import com.smarthr.service.rag.RAGService;
+// RAGService 已注释停用（2026-07-11），详情见该类 JavaDoc
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,8 +24,9 @@ import java.util.*;
 public class HybridMatchService {
 
     private final SkillGraphService skillGraphService;
-    @SuppressWarnings("unused") // RAG 功能已禁用，保留字段以便将来可能重新启用
-    private final RAGService ragService;
+    // RAG 评分维度已禁用，ragService 字段一并注释（2026-07-11）
+    // @SuppressWarnings("unused")
+    // private final RAGService ragService;
     private final ModelRouter modelRouter;
 
     /**

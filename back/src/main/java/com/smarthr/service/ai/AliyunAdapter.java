@@ -96,7 +96,7 @@ public class AliyunAdapter implements AIModelAdapter {
         }
     }
 
-    @Override
+    /*@Override
     public float[] embed(String text) {
         if (!isEnabled()) {
             throw new IllegalStateException("Aliyun model is not enabled");
@@ -129,7 +129,7 @@ public class AliyunAdapter implements AIModelAdapter {
             log.error("Batch embedding error with Aliyun: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to batch embed with Aliyun model", e);
         }
-    }
+    }*/
 
     /**
      * 将消息 Map 转换为 Spring AI Message 对象

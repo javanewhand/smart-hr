@@ -16,6 +16,7 @@ import {
   DashboardOutlined,
  QuestionCircleOutlined,
   SettingOutlined,
+  NodeIndexOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../../store/authStore'
 import ModelSelector from '../ModelSelector'
@@ -50,6 +51,11 @@ const MainLayout = () => {
       key: '/hr/match-history',
       icon: <HistoryOutlined />,
       label: '匹配历史',
+    },
+    {
+      key: '/hr/skill-graph',
+      icon: <NodeIndexOutlined />,
+      label: '技能图谱',
     },
   ]
 

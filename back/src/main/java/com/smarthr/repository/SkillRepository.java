@@ -26,9 +26,12 @@ public interface SkillRepository extends Neo4jRepository<SkillNode, String> {
     Optional<SkillNode> findByName(String name);
 
     /**
-     * 根据关键词模糊查找
+     * 根据关键词模糊查找（忽略大小写和空格）
+     * 如输入 "springboot" 可匹配 "Spring Boot"，输入 "jvm" 可匹配关键词 "JVM"
      */
-    @Query("MATCH (s:Skill) WHERE s.name CONTAINS $keyword OR ANY(k IN s.keywords WHERE k CONTAINS $keyword) RETURN s")
+    @Query("MATCH (s:Skill) WHERE toLower(replace(s.name, ' ', '')) CONTAINS toLower(replace($keyword, ' ', '')) "
+         + "OR ANY(k IN s.keywords WHERE toLower(replace(k, ' ', '')) CONTAINS toLower(replace($keyword, ' ', ''))) "
+         + "RETURN s")
     List<SkillNode> findByKeyword(String keyword);
 
     /**

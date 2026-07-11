@@ -171,12 +171,15 @@ public class SkillGraphService {
 
     /**
      * 推荐需要学习的技能
+     * 先将用户输入的原始技能名通过图谱关键词映射为标准名，避免大小写/别名导致的误判
+     * 结果按技能等级从低到高排序，确保先学基础再学进阶
      */
     public List<String> recommendSkillsToLearn(List<String> currentSkills, List<String> targetSkills) {
-        Set<String> current = new HashSet<>(currentSkills);
+        Set<String> current = normalizeSkillNames(currentSkills);
+        Set<String> targets = normalizeSkillNames(targetSkills);
         List<String> toLearn = new ArrayList<>();
 
-        for (String target : targetSkills) {
+        for (String target : targets) {
             if (!current.contains(target)) {
                 // 获取该技能的前置依赖
                 List<SkillNode> prerequisites = skillRepository.findPrerequisites(target);
@@ -190,8 +193,29 @@ public class SkillGraphService {
                 }
             }
         }
-
+        // 按技能等级升序排列（低等级=基础，先学）
+        toLearn.sort(Comparator.comparingInt(name -> {
+            SkillNode node = skillRepository.findByName(name).orElse(null);
+            return node != null && node.getLevel() != null ? node.getLevel() : Integer.MAX_VALUE;
+        }));
         return toLearn;
+    }
+
+    /**
+     * 将原始技能名映射为知识图谱中的标准名
+     * 通过搜索技能名称和关键词模糊匹配，取第一个命中结果
+     */
+    private Set<String> normalizeSkillNames(List<String> rawNames) {
+        Set<String> normalized = new HashSet<>();
+        for (String raw : rawNames) {
+            List<SkillNode> matched = skillRepository.findByKeyword(raw.trim());
+            if (!matched.isEmpty()) {
+                normalized.add(matched.get(0).getName());
+            } else {
+                normalized.add(raw.trim());
+            }
+        }
+        return normalized;
     }
 
     /**

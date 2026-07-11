@@ -3,46 +3,28 @@
  *
  * @author QinFeng Luo
  * @date 2026/01/09
+ *
+ * 注意：2026-07-11 起已注释停用。
+ * 原因：其唯一消费者 RAGService 和 DocumentSplitter 均已停用，此数据结构无其他引用。
+ * 恢复条件：随 RAG 管道一同恢复。
  */
-package com.smarthr.service.rag;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.Map;
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class DocumentChunk {
-
-    /**
-     * 分块 ID
-     */
-    private String id;
-
-    /**
-     * 原始文档 ID
-     */
-    private String documentId;
-
-    /**
-     * 分块内容
-     */
-    private String content;
-
-    /**
-     * 分块索引（在原文档中的位置）
-     */
-    private int chunkIndex;
-
-    /**
-     * 元数据
-     */
-    private Map<String, Object> metadata;
-}
-
-
+// package com.smarthr.service.rag;
+//
+// import lombok.AllArgsConstructor;
+// import lombok.Builder;
+// import lombok.Data;
+// import lombok.NoArgsConstructor;
+//
+// import java.util.Map;
+//
+// @Data
+// @Builder
+// @NoArgsConstructor
+// @AllArgsConstructor
+// public class DocumentChunk {
+//     private String id;
+//     private String documentId;
+//     private String content;
+//     private int chunkIndex;
+//     private Map<String, Object> metadata;
+// }
