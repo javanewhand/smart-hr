@@ -46,19 +46,19 @@ public interface AIModelAdapter {
     Flux<String> stream(List<Map<String, String>> messages);
 
     /**
-     * 文本向量化
+     * 文本向量化（两个方法在embedding实现，与adaptor类进行了解耦）
      *
      * @param text 待向量化的文本
      * @return 向量数组
      */
-    float[] embed(String text);
+    /*float[] embed(String text);
 
-    /**
+    *//**
      * 批量文本向量化
      *
      * @param texts 待向量化的文本列表
      * @return 向量数组列表
-     */
-    List<float[]> embedBatch(List<String> texts);
+     *//*
+    List<float[]> embedBatch(List<String> texts);*/
 }
 

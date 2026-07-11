@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 
 @Data
 @Component
-@ConfigurationProperties(prefix = "smart-hr.ai")
+@ConfigurationProperties(prefix = "smart-hr.ai")//读取yml文件
 public class AIModelProperties {
 
     private String defaultModel = "aliyun";

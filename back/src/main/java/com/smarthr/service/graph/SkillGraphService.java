@@ -7,6 +7,7 @@
  */
 package com.smarthr.service.graph;
 
+import com.smarthr.entity.SkillNode;
 import com.smarthr.repository.SkillRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +33,7 @@ public class SkillGraphService {
 
         List<SkillNode> allSkills = skillRepository.findAllSkills();
         List<String> extractedSkills = new ArrayList<>();
-        String lowerText = text.toLowerCase();
+        String lowerText = text.toLowerCase();//全部转换为小写字母
 
         for (SkillNode skill : allSkills) {
             // 检查技能名称

@@ -8,7 +8,7 @@ package com.smarthr.service.document;
 
 import com.smarthr.service.ai.ModelRouter;
 import com.smarthr.service.graph.SkillGraphService;
-import com.smarthr.service.graph.SkillNode;
+import com.smarthr.entity.SkillNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

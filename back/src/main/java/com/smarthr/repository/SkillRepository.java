@@ -6,7 +6,7 @@
  */
 package com.smarthr.repository;
 
-import com.smarthr.service.graph.SkillNode;
+import com.smarthr.entity.SkillNode;
 import org.springframework.data.neo4j.repository.Neo4jRepository;
 import org.springframework.data.neo4j.repository.query.Query;
 import org.springframework.stereotype.Repository;
@@ -14,6 +14,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 注意：由于其中关系非常简单，即关系里没有任何属性，所以将节点与关系用的是同一个类，即都用的skillNode类
+ */
 @Repository
 public interface SkillRepository extends Neo4jRepository<SkillNode, String> {
 

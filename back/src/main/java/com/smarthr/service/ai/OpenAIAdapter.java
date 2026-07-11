@@ -47,23 +47,39 @@ public class OpenAIAdapter implements AIModelAdapter {
         return MODEL_NAME;
     }
 
+    /**
+     * 检测使用的大模型是否可用
+     * @return
+     */
     @Override
     public boolean isEnabled() {
         return config.isEnabled();
     }
 
+    /**
+     * 注意，这里传递的LIST<MAP<string,string>>传递的是前端整个对话历史，不是单次对话，因此必须转换格式
+     * @param messages 对话消息列表
+     * @return
+     */
     @Override
     public String chat(List<Map<String, String>> messages) {
         if (!isEnabled()) {
             throw new IllegalStateException("OpenAI model is not enabled");
         }
+        //由消息列表构建prompt,其中Prompt类里的prompt是整个上下文
         List<Message> aiMessages = convertMessages(messages);
         Prompt prompt = new Prompt(aiMessages);
+
         String response = chatClient.prompt(prompt).call().content();
         log.debug("OpenAI chat completed, response length: {}", response != null ? response.length() : 0);
         return response;
     }
 
+    /**
+     * 该方法为结果流式输出，但并没有被使用
+     * @param messages 对话消息列表
+     * @return
+     */
     @Override
     public Flux<String> stream(List<Map<String, String>> messages) {
         if (!isEnabled()) {
@@ -74,6 +90,11 @@ public class OpenAIAdapter implements AIModelAdapter {
         return chatClient.prompt(prompt).stream().content();
     }
 
+ /*   *//**
+     * 文本向量化，把文字转换为AI能理解的数字向量，下面的方法为批量处理
+     * @param text 待向量化的文本
+     * @return
+     *//*
     @Override
     public float[] embed(String text) {
         if (!isEnabled()) {
@@ -95,8 +116,13 @@ public class OpenAIAdapter implements AIModelAdapter {
         response.getResults().forEach(r -> embeddings.add(r.getOutput()));
         log.debug("OpenAI batch embedding completed, count: {}", embeddings.size());
         return embeddings;
-    }
+    }*/
 
+    /**
+     *
+     * 该方法用于将业务层通用的messages转换为springAI看得懂的集合
+     * @return
+     */
     private List<Message> convertMessages(List<Map<String, String>> messages) {
         List<Message> aiMessages = new ArrayList<>();
         for (Map<String, String> msg : messages) {

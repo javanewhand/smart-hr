@@ -1,5 +1,6 @@
 /**
  * 简历管理服务
+ * 内部涉及将读取简历，调用milvius读取简历并计算相似度，而后存储到MinIO中
  *
  * @author QinFeng Luo
  * @date 2026/01/12
