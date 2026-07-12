@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react'
 import { Card, Form, Select, InputNumber, Button, message, List, Tag, Typography, Spin, Row, Col, Input } from 'antd'
-import { RobotOutlined, CopyOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { RobotOutlined, CopyOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { positionApi, Position } from '../../api/position'
 import { interviewApi, InterviewQuestion, GenerateQuestionsRequest } from '../../api/interview'
 
@@ -19,6 +19,7 @@ const GenerateQuestions = () => {
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<InterviewQuestion[]>([])
+  const [recordId, setRecordId] = useState<number | null>(null)
   const [customSkills, setCustomSkills] = useState<string[]>([])
   const [skillInput, setSkillInput] = useState('')
   const [generateMode, setGenerateMode] = useState<'position' | 'skills'>('position')
@@ -68,6 +69,7 @@ const GenerateQuestions = () => {
       }
 
       setQuestions(result.questions || [])
+      setRecordId(result.id)
       message.success('面试题生成成功')
     } catch (error) {
       message.error('生成失败，请重试')
@@ -85,6 +87,32 @@ const GenerateQuestions = () => {
 
   const handleRemoveSkill = (skill: string) => {
     setCustomSkills(customSkills.filter(s => s !== skill))
+  }
+
+  const handleApprove = async (index: number) => {
+    if (!recordId) return
+    try {
+      await interviewApi.approveQuestion(recordId, index)
+      const updated = [...questions]
+      updated[index] = { ...updated[index], status: 'APPROVED' }
+      setQuestions(updated)
+      message.success('题目已入库')
+    } catch {
+      message.error('入库失败')
+    }
+  }
+
+  const handleReject = async (index: number) => {
+    if (!recordId) return
+    try {
+      await interviewApi.rejectQuestion(recordId, index)
+      const updated = [...questions]
+      updated[index] = { ...updated[index], status: 'REJECTED' }
+      setQuestions(updated)
+      message.success('题目已弃用')
+    } catch {
+      message.error('操作失败')
+    }
   }
 
   const handleCopy = () => {
@@ -230,7 +258,33 @@ const GenerateQuestions = () => {
               <List
                 dataSource={questions}
                 renderItem={(item, index) => (
-                  <List.Item>
+                  <List.Item
+                    actions={
+                      item.status === 'APPROVED'
+                        ? [<Tag color="green">已入库</Tag>]
+                        : item.status === 'REJECTED'
+                          ? [<Tag color="default">已弃用</Tag>]
+                          : [
+                              <Button
+                                key="approve"
+                                type="link"
+                                icon={<CheckOutlined />}
+                                onClick={() => handleApprove(index)}
+                              >
+                                入库
+                              </Button>,
+                              <Button
+                                key="reject"
+                                type="link"
+                                danger
+                                icon={<CloseOutlined />}
+                                onClick={() => handleReject(index)}
+                              >
+                                弃用
+                              </Button>,
+                            ]
+                    }
+                  >
                     <List.Item.Meta
                       title={
                         <div>
@@ -242,6 +296,8 @@ const GenerateQuestions = () => {
                             {getDifficultyLabel(item.difficulty)}
                           </Tag>
                           {item.skill && <Tag>{item.skill}</Tag>}
+                          {item.status === 'APPROVED' && <Tag color="green">已入库</Tag>}
+                          {item.status === 'REJECTED' && <Tag color="default">已弃用</Tag>}
                         </div>
                       }
                       description={

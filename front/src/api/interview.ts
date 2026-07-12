@@ -13,6 +13,7 @@ export interface InterviewQuestion {
   skill: string
   answerPoints?: string
   evaluationDimension: string
+  status?: string
 }
 
 export interface InterviewRecord {
@@ -90,5 +91,15 @@ export const interviewApi = {
   // 删除面试记录
   deleteRecord: async (id: number): Promise<void> => {
     await request.delete(`/interview/records/${id}`)
+  },
+
+  // 题目入库
+  approveQuestion: async (recordId: number, questionIndex: number): Promise<void> => {
+    await request.post(`/interview/records/${recordId}/questions/${questionIndex}/approve`)
+  },
+
+  // 弃用题目
+  rejectQuestion: async (recordId: number, questionIndex: number): Promise<void> => {
+    await request.post(`/interview/records/${recordId}/questions/${questionIndex}/reject`)
   },
 }

@@ -17,6 +17,9 @@ import com.smarthr.exception.BusinessException;
 import com.smarthr.repository.InterviewRecordRepository;
 import com.smarthr.repository.PositionRepository;
 import com.smarthr.service.ai.ModelRouter;
+import com.smarthr.service.rag.EmbeddingService;
+import com.smarthr.service.vector.QuestionBankVectorStore;
+import com.smarthr.service.vector.VectorDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,6 +43,8 @@ public class InterviewQuestionService {
     private final InterviewRecordRepository interviewRecordRepository;
     private final ObjectMapper objectMapper;
     private final QuestionBankService questionBankService;
+    private final EmbeddingService embeddingService;
+    private final Optional<QuestionBankVectorStore> questionBankVectorStore;
 
     /**
      * 根据请求生成面试题
@@ -172,6 +177,100 @@ public class InterviewQuestionService {
     }
 
     /**
+     * 将指定题目入库到向量题库
+     */
+    @Transactional
+    public void approveQuestion(Long recordId, int questionIndex, Long userId) {
+        InterviewRecord record = interviewRecordRepository.findById(recordId)
+                .orElseThrow(() -> new BusinessException("面试记录不存在"));
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException("无权操作此记录");
+        }
+
+        List<Map<String, Object>> questions = record.getQuestions();
+        if (questions == null || questionIndex < 0 || questionIndex >= questions.size()) {
+            throw new BusinessException("题目序号无效");
+        }
+
+        Map<String, Object> question = questions.get(questionIndex);
+        question.put("status", "APPROVED");
+        record.setQuestions(questions);
+        interviewRecordRepository.save(record);
+
+        writeToVectorStore(question);
+        log.info("Question {}/{} approved to bank by user {}", recordId, questionIndex, userId);
+    }
+
+    /**
+     * 弃用指定题目
+     */
+    @Transactional
+    public void rejectQuestion(Long recordId, int questionIndex, Long userId) {
+        InterviewRecord record = interviewRecordRepository.findById(recordId)
+                .orElseThrow(() -> new BusinessException("面试记录不存在"));
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException("无权操作此记录");
+        }
+
+        List<Map<String, Object>> questions = record.getQuestions();
+        if (questions == null || questionIndex < 0 || questionIndex >= questions.size()) {
+            throw new BusinessException("题目序号无效");
+        }
+
+        Map<String, Object> question = questions.get(questionIndex);
+        question.put("status", "REJECTED");
+        record.setQuestions(questions);
+        interviewRecordRepository.save(record);
+
+        log.info("Question {}/{} rejected by user {}", recordId, questionIndex, userId);
+    }
+
+    /**
+     * 将题目写入 Milvus 向量题库
+     */
+    private void writeToVectorStore(Map<String, Object> question) {
+        if (questionBankVectorStore.isEmpty()) {
+            log.warn("Question bank Milvus unavailable, skip vector write");
+            return;
+        }
+        try {
+            String questionText = getStringValue(question, "question");
+            String answer = getStringValue(question, "answerPoints");
+            String skill = getStringValue(question, "skill");
+            String domain = getStringValue(question, "domain");
+
+            String embedText = String.format("Smart-HR 科技 面试题 %s 企业金融/支付 %s %s 答案要点: %s",
+                    skill != null ? skill : "",
+                    questionText != null ? questionText : "",
+                    domain != null ? domain : "企业金融/支付",
+                    answer != null ? answer : "");
+
+            float[] embedding = embeddingService.embed(embedText);
+
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("question", questionText);
+            metadata.put("answer", answer != null ? answer : "");
+            metadata.put("difficulty", getStringValue(question, "difficulty"));
+            metadata.put("type", getStringValue(question, "type"));
+            metadata.put("domain", domain != null ? domain : "企业金融/支付");
+            metadata.put("updatedAt", LocalDateTime.now().toString());
+
+            String docId = UUID.randomUUID().toString();
+            VectorDocument doc = VectorDocument.builder()
+                    .id(docId)
+                    .content(questionText)
+                    .embedding(embedding)
+                    .metadata(metadata)
+                    .build();
+
+            questionBankVectorStore.get().addDocument(doc);
+            log.info("Question written to vector store: {}", docId);
+        } catch (Exception e) {
+            log.error("Failed to write question to vector store: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * 获取用于生成的技能列表
      */
     private List<String> getSkillsForGeneration(GenerateQuestionsRequest request) {
@@ -216,7 +315,7 @@ public class InterviewQuestionService {
         List<Map<String, String>> messages = List.of(
                 Map.of("role", "system", "content",
                         "你是 Smart-HR 科技的面试官助手，行业=企业金融/支付。"
-                                + "需优先复用/改写公司内部题库，保持题干中体现公司名或“我们公司”。"
+                                + "需优先复用/改写公司内部题库，保持题干中体现公司名或“我们公司”"
                                 + "请仅输出 JSON 数组。"),
                 Map.of("role", "user", "content", prompt)
         );
@@ -235,16 +334,17 @@ public class InterviewQuestionService {
      * 构建生成题目的 Prompt
      */
     private String buildPrompt(List<String> skills, GenerateQuestionsRequest request, String kbContext) {
-        String difficultyDesc = switch (request.getDifficulty().toUpperCase()) {
-            case "JUNIOR" -> "初级（1-3年经验）";
+        String difficulty = request.getDifficulty().toUpperCase();
+        String difficultyDesc = switch (difficulty) {
+            case "JUNIOR" -> "初级（0-3年经验）";
             case "SENIOR" -> "高级（5年以上经验）";
             default -> "中级（3-5年经验）";
         };
 
         String typeDesc = switch (request.getQuestionType().toUpperCase()) {
-            case "TECHNICAL" -> "技术题（代码、算法、原理）";
+            case "TECHNICAL" -> "技术题（概念、原理、算法等纯知识问答）";
             case "BEHAVIORAL" -> "行为题（过往经历、团队协作）";
-            case "SCENARIO" -> "情景题（假设场景、问题解决）";
+            case "SCENARIO" -> "情景题（假设业务场景，给出解决方案）";
             default -> "混合题型（技术题、行为题、情景题均衡分布）";
         };
 
@@ -260,17 +360,26 @@ public class InterviewQuestionService {
         sb.append(kbContext).append("\n");
         sb.append("- 若未命中或相关度低，请生成贴合上述业务背景的新题，并在输出中保持公司名。\n\n");
 
+        sb.append("## 题型区分（严格遵循）\n");
+        sb.append("- 技术题：纯知识问答，直接问概念、原理、算法。题干中不要出现具体业务场景、不要提公司名。\n");
+        sb.append("  正确示例：「MySQL 的 MVCC 机制是如何实现的？」「Redis 的过期删除策略有哪些？」\n");
+        sb.append("  错误示例：「在 Smart-HR 科技的对账场景中，MySQL 如何保证事务一致性？请写出 SQL。」\n");
+        sb.append("- 情景题：嵌入具体业务场景，描述一个实际问题和约束条件，让候选人设计或实现方案。题干中可出现公司名和业务细节。\n");
+        sb.append("  正确示例：「Smart-HR 科技日均对账100万笔，MySQL 单表查询变慢，请设计方案解决。」\n\n");
+
         sb.append("## 生成要求\n");
         sb.append("- 难度级别：").append(difficultyDesc).append("\n");
         sb.append("- 题目数量：").append(request.getCount()).append(" 道\n");
         sb.append("- 题目类型：").append(typeDesc).append("\n");
-        sb.append("- 题干中需出现“Smart-HR 科技”或“我们公司”，场景需贴合企业金融/支付。\n");
+        sb.append("- 技术题不要提公司名；情景题/行为题若自然涉及公司可提「Smart-HR 科技」或「我们公司」。\n");
         sb.append("- 优先沿用/改写上方题库的题目/答案要点；未命中时再生成新题，并保持业务一致。\n");
-        
+
+        sb.append(buildDifficultyConstraints(difficulty));
+
         if (Boolean.TRUE.equals(request.getIncludeAnswers())) {
             sb.append("- 需要包含参考答案要点\n");
         }
-        
+
         sb.append("\n## 输出格式\n");
         sb.append("请以JSON数组格式返回，每个题目包含以下字段：\n");
         sb.append("```json\n");
@@ -288,8 +397,32 @@ public class InterviewQuestionService {
         sb.append("]\n");
         sb.append("```\n");
         sb.append("\n只返回JSON数组，不要有其他内容。");
-        
+
         return sb.toString();
+    }
+
+    private String buildDifficultyConstraints(String difficulty) {
+        switch (difficulty) {
+            case "JUNIOR":
+                return "\n- 【初级难度约束，请严格遵循】\n"
+                    + "  * 只考察基础概念、常用 API 和简单应用场景。\n"
+                    + "  * 题干简短直白，用一句话说清场景即可，不要堆砌复杂背景\n"
+                    + "  * 参考答案只需判断候选人「是否理解这个基础概念」，不要求深入展开\n"
+                    + "  * 如果出技术题，聚焦在「是什么、怎么用」，不要问「为什么这么设计、如何优化」\n"
+                    + "  * 如果出行为题，聚焦在「你遇到过什么问题、怎么解决的」，场景贴近日常工作\n";
+            case "SENIOR":
+                return "\n- 【高级难度约束】\n"
+                    + "  * 考察架构设计、深度原理、故障排查和技术选型\n"
+                    + "  * 题干可包含复杂分布式场景和 trade-off 权衡\n"
+                    + "  * 参考答案需体现方案完整性和多维度思考\n"
+                    + "  * 可以涉及：分布式系统设计、源码级理解、大规模调优、团队技术规划\n";
+            default:
+                return "\n- 【中级难度约束】\n"
+                    + "  * 考察原理理解、常见方案选型和简单设计能力\n"
+                    + "  * 题干可包含具体业务场景，但不要过度复杂\n"
+                    + "  * 参考答案以「能否讲清原理并给出合理方案」为标准\n"
+                    + "  * 可以涉及：框架核心原理、中间件使用场景、常见设计模式、基础性能优化\n";
+        }
     }
 
     /**
@@ -391,6 +524,8 @@ public class InterviewQuestionService {
                     map.put("skill", q.getSkill());
                     map.put("answerPoints", q.getAnswerPoints());
                     map.put("evaluationDimension", q.getEvaluationDimension());
+                    map.put("status", "DRAFT");
+                    map.put("domain", request.getBusinessDomain());
                     return map;
                 })
                 .collect(Collectors.toList());
@@ -423,6 +558,7 @@ public class InterviewQuestionService {
                         .skill(getStringValue(map, "skill"))
                         .answerPoints(getStringValue(map, "answerPoints"))
                         .evaluationDimension(getStringValue(map, "evaluationDimension"))
+                        .status(getStringValue(map, "status"))
                         .build())
                 .collect(Collectors.toList());
     }

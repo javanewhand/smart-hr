@@ -64,10 +64,23 @@ public class QuestionBankVectorStore implements VectorStore {
             );
 
             if (exists) {
-                milvusClient.dropCollection(io.milvus.v2.service.collection.request.DropCollectionReq.builder()
-                        .collectionName(collectionName)
-                        .build());
-                log.info("Dropped existing question collection {} for recreation", collectionName);
+                if (forceReload) {
+                    milvusClient.dropCollection(io.milvus.v2.service.collection.request.DropCollectionReq.builder()
+                            .collectionName(collectionName)
+                            .build());
+                    log.info("Dropped existing question collection {} for recreation", collectionName);
+                } else {
+                    log.info("Question collection {} already exists, loading", collectionName);
+                    LoadCollectionReq loadReq = LoadCollectionReq.builder()
+                            .collectionName(collectionName)
+                            .build();
+                    try {
+                        milvusClient.loadCollection(loadReq);
+                    } catch (Exception loadEx) {
+                        log.warn("Load Milvus question collection {} failed (non-fatal): {}", collectionName, loadEx.getMessage());
+                    }
+                    return;
+                }
             }
 
             log.info("Creating Milvus question collection: {}", collectionName);

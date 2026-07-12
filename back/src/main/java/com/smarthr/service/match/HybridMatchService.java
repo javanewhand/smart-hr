@@ -209,7 +209,10 @@ public class HybridMatchService {
                 String[] lines = response.split("\n");
                 for (String line : lines) {
                     if (line.contains("评分") && (line.contains("：") || line.contains(":"))) {
+
+                        //只保留数字和小数点，去掉评分：、分等文字
                         String scoreStr = line.replaceAll("[^0-9.]", "");
+
                         if (!scoreStr.isEmpty()) {
                             score = Float.parseFloat(scoreStr);
                             score = Math.max(0, Math.min(100, score));
@@ -305,7 +308,7 @@ public class HybridMatchService {
     }
 
     /**
-     * 批量匹配：一份简历匹配多个岗位
+     * 批量匹配：一份简历匹配多个岗位（为match重载方法，未被使用）
      */
     public List<MatchResult> matchResumeToPositions(String resumeContent, 
                                                      List<PositionInfo> positions, 
@@ -326,7 +329,7 @@ public class HybridMatchService {
     }
 
     /**
-     * 批量匹配：一个岗位匹配多份简历
+     * 批量匹配：一个岗位匹配多份简历（为match重载方法，未被使用）
      */
     public List<MatchResult> matchPositionToResumes(String positionContent, 
                                                      List<String> requiredSkills,
@@ -348,7 +351,8 @@ public class HybridMatchService {
     }
 
     /**
-     * LLM 评估结果
+     * LLM 评估结果（record关键字用于自动生成getter，setter类方法，用来保持代码整洁）
+     * 这三个方法都是用来保存相应的数据，供其他地方重复使用
      */
     private record LLMEvaluation(float score, String report) {}
 

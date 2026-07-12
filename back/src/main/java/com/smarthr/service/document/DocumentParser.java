@@ -30,7 +30,7 @@ public class DocumentParser {
      */
     public String parse(MultipartFile file) {
         String filename = Objects.requireNonNull(file.getOriginalFilename()).toLowerCase();
-        
+        //方法内部校验（兜底）
         try {
             if (filename.endsWith(".pdf")) {
                 return parsePdf(file.getInputStream());
@@ -100,7 +100,7 @@ public class DocumentParser {
     }
 
     /**
-     * 检查文件类型是否支持
+     * 检查文件类型是否支持（该方法为文档类型前置校验）
      */
     public boolean isSupported(String filename) {
         if (filename == null) {

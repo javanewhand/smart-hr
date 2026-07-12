@@ -1,5 +1,6 @@
 /**
  * 面试题记录数据访问接口
+ * 由于继承自JPA，而JPA主数据源配置配置为pgSQL，所以默认查询为pgSQL
  *
  * @author QinFeng Luo
  * @date 2026/01/09

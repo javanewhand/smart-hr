@@ -99,6 +99,30 @@ public class InterviewController {
         interviewQuestionService.deleteRecord(id, user.getId());
         return ResponseEntity.ok(ApiResponse.successMessage("面试记录删除成功"));
     }
+
+    /**
+     * 题目入库
+     */
+    @PostMapping("/records/{id}/questions/{index}/approve")
+    public ResponseEntity<ApiResponse<Void>> approveQuestion(
+            @PathVariable Long id,
+            @PathVariable int index,
+            @AuthenticationPrincipal UserPrincipal user) {
+        interviewQuestionService.approveQuestion(id, index, user.getId());
+        return ResponseEntity.ok(ApiResponse.successMessage("题目已入库"));
+    }
+
+    /**
+     * 弃用题目
+     */
+    @PostMapping("/records/{id}/questions/{index}/reject")
+    public ResponseEntity<ApiResponse<Void>> rejectQuestion(
+            @PathVariable Long id,
+            @PathVariable int index,
+            @AuthenticationPrincipal UserPrincipal user) {
+        interviewQuestionService.rejectQuestion(id, index, user.getId());
+        return ResponseEntity.ok(ApiResponse.successMessage("题目已弃用"));
+    }
 }
 
 

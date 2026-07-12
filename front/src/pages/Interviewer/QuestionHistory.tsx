@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Card, Table, Tag, Button, Modal, List, Typography, message } from 'antd'
-import { EyeOutlined } from '@ant-design/icons'
+import { EyeOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { interviewApi, InterviewRecord } from '../../api/interview'
 
@@ -54,6 +54,36 @@ const QuestionHistory = () => {
   const handleView = (record: InterviewRecord) => {
     setSelectedRecord(record)
     setModalVisible(true)
+  }
+
+  const handleApprove = async (index: number) => {
+    if (!selectedRecord) return
+    try {
+      await interviewApi.approveQuestion(selectedRecord.id, index)
+      const updated = { ...selectedRecord }
+      updated.questions = [...updated.questions]
+      updated.questions[index] = { ...updated.questions[index], status: 'APPROVED' }
+      setSelectedRecord(updated)
+      setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      message.success('题目已入库')
+    } catch {
+      message.error('入库失败')
+    }
+  }
+
+  const handleReject = async (index: number) => {
+    if (!selectedRecord) return
+    try {
+      await interviewApi.rejectQuestion(selectedRecord.id, index)
+      const updated = { ...selectedRecord }
+      updated.questions = [...updated.questions]
+      updated.questions[index] = { ...updated.questions[index], status: 'REJECTED' }
+      setSelectedRecord(updated)
+      setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      message.success('题目已弃用')
+    } catch {
+      message.error('操作失败')
+    }
   }
 
   const getDisplayTitle = (record: InterviewRecord) => {
@@ -141,7 +171,33 @@ const QuestionHistory = () => {
           <List
             dataSource={selectedRecord.questions}
             renderItem={(item, index) => (
-              <List.Item>
+              <List.Item
+                actions={
+                  (item as any).status === 'APPROVED'
+                    ? [<Tag color="green" key="approved">已入库</Tag>]
+                    : (item as any).status === 'REJECTED'
+                      ? [<Tag color="default" key="rejected">已弃用</Tag>]
+                      : [
+                          <Button
+                            key="approve"
+                            type="link"
+                            icon={<CheckOutlined />}
+                            onClick={() => handleApprove(index)}
+                          >
+                            入库
+                          </Button>,
+                          <Button
+                            key="reject"
+                            type="link"
+                            danger
+                            icon={<CloseOutlined />}
+                            onClick={() => handleReject(index)}
+                          >
+                            弃用
+                          </Button>,
+                        ]
+                }
+              >
                 <List.Item.Meta
                   title={
                     <div>
@@ -154,6 +210,8 @@ const QuestionHistory = () => {
                       {item.difficulty && (
                         <Tag style={{ marginLeft: 8 }}>{item.difficulty}</Tag>
                       )}
+                      {(item as any).status === 'APPROVED' && <Tag color="green" style={{ marginLeft: 8 }}>已入库</Tag>}
+                      {(item as any).status === 'REJECTED' && <Tag color="default" style={{ marginLeft: 8 }}>已弃用</Tag>}
                     </div>
                   }
                   description={

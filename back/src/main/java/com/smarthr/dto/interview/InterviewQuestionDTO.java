@@ -46,6 +46,11 @@ public class InterviewQuestionDTO {
      * 评估维度
      */
     private String evaluationDimension;
+
+    /**
+     * 题目状态：DRAFT（默认）/ APPROVED（已入库）/ REJECTED（已弃用）
+     */
+    private String status;
 }
 
 

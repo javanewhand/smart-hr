@@ -65,64 +65,77 @@ public class MilvusVectorStore implements VectorStore {
             boolean exists = milvusClient.hasCollection(hasReq);
             
             if (exists) {
-                milvusClient.dropCollection(io.milvus.v2.service.collection.request.DropCollectionReq.builder()
-                        .collectionName(collectionName)
-                        .build());
-                log.info("Dropped existing collection {} for recreation", collectionName);
+                if (forceReload) {
+                    milvusClient.dropCollection(io.milvus.v2.service.collection.request.DropCollectionReq.builder()
+                            .collectionName(collectionName)
+                            .build());
+                    log.info("Dropped existing collection {} for recreation", collectionName);
+                } else {
+                    log.info("Milvus collection {} already exists, loading", collectionName);
+                    LoadCollectionReq loadReq = LoadCollectionReq.builder()
+                            .collectionName(collectionName)
+                            .build();
+                    try {
+                        milvusClient.loadCollection(loadReq);
+                    } catch (Exception loadEx) {
+                        log.warn("Load Milvus collection {} failed (non-fatal): {}", collectionName, loadEx.getMessage());
+                    }
+                    return;
+                }
             }
 
             log.info("Creating Milvus collection: {}", collectionName);
-                
-                // 创建 Schema
-                CreateCollectionReq.CollectionSchema schema = CreateCollectionReq.CollectionSchema.builder()
-                        .build();
-                
-                // ID 字段
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(ID_FIELD)
-                        .dataType(DataType.VarChar)
-                        .maxLength(128)
-                        .isPrimaryKey(true)
-                        .build());
-                
-                // 内容字段
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(CONTENT_FIELD)
-                        .dataType(DataType.VarChar)
-                        .maxLength(65535)
-                        .build());
-                
-                // 向量字段
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(VECTOR_FIELD)
-                        .dataType(DataType.FloatVector)
-                        .dimension(properties.getEmbeddingDimension())
-                        .build());
-                
-                // 元数据字段
-                schema.addField(AddFieldReq.builder()
-                        .fieldName(METADATA_FIELD)
-                        .dataType(DataType.VarChar)
-                        .maxLength(65535)
-                        .build());
-                
-                // 创建索引
-                IndexParam indexParam = IndexParam.builder()
-                        .fieldName(VECTOR_FIELD)
-                        .indexType(IndexParam.IndexType.IVF_FLAT)
-                        .metricType(IndexParam.MetricType.COSINE)
-                        .extraParams(Map.of("nlist", properties.getNlist()))
-                        .build();
-                
-                // 创建集合
-                CreateCollectionReq createReq = CreateCollectionReq.builder()
-                        .collectionName(collectionName)
-                        .collectionSchema(schema)
-                        .indexParams(Collections.singletonList(indexParam))
-                        .build();
-                
-                milvusClient.createCollection(createReq);
-                log.info("Milvus collection created: {}", collectionName);
+
+            // 创建 Schema
+            CreateCollectionReq.CollectionSchema schema = CreateCollectionReq.CollectionSchema.builder()
+                    .build();
+
+            // ID 字段
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(ID_FIELD)
+                    .dataType(DataType.VarChar)
+                    .maxLength(128)
+                    .isPrimaryKey(true)
+                    .build());
+
+            // 内容字段
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(CONTENT_FIELD)
+                    .dataType(DataType.VarChar)
+                    .maxLength(65535)
+                    .build());
+
+            // 向量字段
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(VECTOR_FIELD)
+                    .dataType(DataType.FloatVector)
+                    .dimension(properties.getEmbeddingDimension())
+                    .build());
+
+            // 元数据字段
+            schema.addField(AddFieldReq.builder()
+                    .fieldName(METADATA_FIELD)
+                    .dataType(DataType.VarChar)
+                    .maxLength(65535)
+                    .build());
+
+            // 创建索引
+            IndexParam indexParam = IndexParam.builder()
+                    .fieldName(VECTOR_FIELD)
+                    .indexType(IndexParam.IndexType.IVF_FLAT)
+                    .metricType(IndexParam.MetricType.COSINE)
+                    .extraParams(Map.of("nlist", properties.getNlist()))
+                    .build();
+
+            // 创建集合
+            CreateCollectionReq createReq = CreateCollectionReq.builder()
+                    .collectionName(collectionName)
+                    .collectionSchema(schema)
+                    .indexParams(Collections.singletonList(indexParam))
+                    .build();
+
+            milvusClient.createCollection(createReq);
+            log.info("Milvus collection created: {}", collectionName);
 
             LoadCollectionReq loadReq = LoadCollectionReq.builder()
                     .collectionName(collectionName)
