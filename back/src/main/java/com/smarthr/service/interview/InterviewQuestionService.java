@@ -193,11 +193,21 @@ public class InterviewQuestionService {
         }
 
         Map<String, Object> question = questions.get(questionIndex);
+
+        if ("APPROVED".equals(getStringValue(question, "status"))
+                && question.containsKey("milvusDocId")) {
+            log.info("Question {}/{} already in bank, skipping", recordId, questionIndex);
+            return;
+        }
+
+        String milvusDocId = writeToVectorStore(question);
+        if (milvusDocId != null) {
+            question.put("milvusDocId", milvusDocId);
+        }
         question.put("status", "APPROVED");
         record.setQuestions(questions);
         interviewRecordRepository.save(record);
 
-        writeToVectorStore(question);
         log.info("Question {}/{} approved to bank by user {}", recordId, questionIndex, userId);
     }
 
@@ -226,12 +236,150 @@ public class InterviewQuestionService {
     }
 
     /**
+     * 取消入库：从向量题库移除并恢复状态为 DRAFT
+     */
+    @Transactional
+    public void unapproveQuestion(Long recordId, int questionIndex, Long userId) {
+        InterviewRecord record = interviewRecordRepository.findById(recordId)
+                .orElseThrow(() -> new BusinessException("面试记录不存在"));
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException("无权操作此记录");
+        }
+
+        List<Map<String, Object>> questions = record.getQuestions();
+        if (questions == null || questionIndex < 0 || questionIndex >= questions.size()) {
+            throw new BusinessException("题目序号无效");
+        }
+
+        Map<String, Object> question = questions.get(questionIndex);
+        if (!"APPROVED".equals(getStringValue(question, "status"))) {
+            throw new BusinessException("该题目未入库，无法取消入库");
+        }
+
+        String milvusDocId = getStringValue(question, "milvusDocId");
+        if (milvusDocId != null && questionBankVectorStore.isPresent()) {
+            try {
+                questionBankVectorStore.get().deleteDocument(milvusDocId);
+                log.info("Deleted question doc from Milvus: {}", milvusDocId);
+            } catch (Exception e) {
+                log.error("Failed to delete from Milvus: {}", e.getMessage(), e);
+            }
+        } else if (milvusDocId == null) {
+            log.warn("Question {}/{} has no milvusDocId, cannot delete from vector store", recordId, questionIndex);
+        }
+
+        question.put("status", "DRAFT");
+        question.remove("milvusDocId");
+        record.setQuestions(questions);
+        interviewRecordRepository.save(record);
+        log.info("Question {}/{} unapproved from bank by user {}", recordId, questionIndex, userId);
+    }
+
+    /**
+     * 批量入库：将多条题目同时写入向量题库
+     */
+    @Transactional
+    public void batchApproveQuestions(Long recordId, List<Integer> indices, Long userId) {
+        InterviewRecord record = interviewRecordRepository.findById(recordId)
+                .orElseThrow(() -> new BusinessException("面试记录不存在"));
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException("无权操作此记录");
+        }
+
+        List<Map<String, Object>> questions = record.getQuestions();
+        if (questions == null) {
+            throw new BusinessException("该记录无题目");
+        }
+
+        for (int index : indices) {
+            if (index < 0 || index >= questions.size()) {
+                throw new BusinessException("题目序号无效: " + index);
+            }
+        }
+
+        int successCount = 0;
+        for (int index : indices) {
+            Map<String, Object> question = questions.get(index);
+
+            if ("APPROVED".equals(getStringValue(question, "status"))
+                    && question.containsKey("milvusDocId")) {
+                log.info("Question {}/{} already in bank, skipping", recordId, index);
+                continue;
+            }
+
+            String milvusDocId = writeToVectorStore(question);
+            if (milvusDocId != null) {
+                question.put("milvusDocId", milvusDocId);
+            }
+            question.put("status", "APPROVED");
+            successCount++;
+        }
+
+        record.setQuestions(questions);
+        interviewRecordRepository.save(record);
+        log.info("Batch approved {}/{} questions for record {} by user {}",
+                successCount, indices.size(), recordId, userId);
+    }
+
+    /**
+     * 批量取消入库：将多条题目从向量题库移除并恢复为 DRAFT
+     */
+    @Transactional
+    public void batchUnapproveQuestions(Long recordId, List<Integer> indices, Long userId) {
+        InterviewRecord record = interviewRecordRepository.findById(recordId)
+                .orElseThrow(() -> new BusinessException("面试记录不存在"));
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException("无权操作此记录");
+        }
+
+        List<Map<String, Object>> questions = record.getQuestions();
+        if (questions == null) {
+            throw new BusinessException("该记录无题目");
+        }
+
+        for (int index : indices) {
+            if (index < 0 || index >= questions.size()) {
+                throw new BusinessException("题目序号无效: " + index);
+            }
+            if (!"APPROVED".equals(getStringValue(questions.get(index), "status"))) {
+                throw new BusinessException("序号 " + index + " 的题目未入库，无法取消入库");
+            }
+        }
+
+        List<String> docIdsToDelete = new ArrayList<>();
+        for (int index : indices) {
+            String milvusDocId = getStringValue(questions.get(index), "milvusDocId");
+            if (milvusDocId != null) {
+                docIdsToDelete.add(milvusDocId);
+            }
+        }
+
+        if (!docIdsToDelete.isEmpty() && questionBankVectorStore.isPresent()) {
+            try {
+                questionBankVectorStore.get().deleteDocuments(docIdsToDelete);
+                log.info("Batch deleted {} question docs from Milvus", docIdsToDelete.size());
+            } catch (Exception e) {
+                log.error("Failed to batch delete from Milvus: {}", e.getMessage(), e);
+            }
+        }
+
+        for (int index : indices) {
+            Map<String, Object> question = questions.get(index);
+            question.put("status", "DRAFT");
+            question.remove("milvusDocId");
+        }
+        record.setQuestions(questions);
+        interviewRecordRepository.save(record);
+        log.info("Batch unapproved {} questions for record {} by user {}", indices.size(), recordId, userId);
+    }
+
+    /**
      * 将题目写入 Milvus 向量题库
      */
-    private void writeToVectorStore(Map<String, Object> question) {
+    private String writeToVectorStore(Map<String, Object> question) {
         if (questionBankVectorStore.isEmpty()) {
             log.warn("Question bank Milvus unavailable, skip vector write");
-            return;
+            return null;
         }
         try {
             String questionText = getStringValue(question, "question");
@@ -265,8 +413,10 @@ public class InterviewQuestionService {
 
             questionBankVectorStore.get().addDocument(doc);
             log.info("Question written to vector store: {}", docId);
+            return docId;
         } catch (Exception e) {
             log.error("Failed to write question to vector store: {}", e.getMessage(), e);
+            return null;
         }
     }
 

@@ -80,6 +80,9 @@ public class AIController {
                     userRepository.save(user);
                 });
 
+        // 切换模型后清除 Redis 缓存，避免后续路由读到旧模型偏好
+        modelRouter.evictUserModelCache(userPrincipal.getId());
+
         Map<String, Object> result = Map.of(
                 "success", true,
                 "modelId", modelId,

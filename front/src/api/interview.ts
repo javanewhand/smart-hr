@@ -102,4 +102,19 @@ export const interviewApi = {
   rejectQuestion: async (recordId: number, questionIndex: number): Promise<void> => {
     await request.post(`/interview/records/${recordId}/questions/${questionIndex}/reject`)
   },
+
+  // 取消题目入库
+  unapproveQuestion: async (recordId: number, questionIndex: number): Promise<void> => {
+    await request.post(`/interview/records/${recordId}/questions/${questionIndex}/unapprove`)
+  },
+
+  // 批量入库
+  batchApproveQuestions: async (recordId: number, indices: number[]): Promise<void> => {
+    await request.post(`/interview/records/${recordId}/questions/batch-approve`, { indices })
+  },
+
+  // 批量取消入库
+  batchUnapproveQuestions: async (recordId: number, indices: number[]): Promise<void> => {
+    await request.post(`/interview/records/${recordId}/questions/batch-unapprove`, { indices })
+  },
 }

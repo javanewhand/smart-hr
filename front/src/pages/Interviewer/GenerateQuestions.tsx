@@ -5,8 +5,8 @@
  * @date 2026/01/09
  */
 import { useState, useEffect } from 'react'
-import { Card, Form, Select, InputNumber, Button, message, List, Tag, Typography, Spin, Row, Col, Input } from 'antd'
-import { RobotOutlined, CopyOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { Card, Form, Select, InputNumber, Button, message, List, Tag, Typography, Spin, Row, Col, Input, Checkbox, Space } from 'antd'
+import { RobotOutlined, CopyOutlined, PlusOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { positionApi, Position } from '../../api/position'
 import { interviewApi, InterviewQuestion, GenerateQuestionsRequest } from '../../api/interview'
 
@@ -20,6 +20,7 @@ const GenerateQuestions = () => {
   const [generating, setGenerating] = useState(false)
   const [questions, setQuestions] = useState<InterviewQuestion[]>([])
   const [recordId, setRecordId] = useState<number | null>(null)
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
   const [customSkills, setCustomSkills] = useState<string[]>([])
   const [skillInput, setSkillInput] = useState('')
   const [generateMode, setGenerateMode] = useState<'position' | 'skills'>('position')
@@ -70,6 +71,7 @@ const GenerateQuestions = () => {
 
       setQuestions(result.questions || [])
       setRecordId(result.id)
+      setSelectedIndices(new Set())
       message.success('面试题生成成功')
     } catch (error) {
       message.error('生成失败，请重试')
@@ -112,6 +114,82 @@ const GenerateQuestions = () => {
       message.success('题目已弃用')
     } catch {
       message.error('操作失败')
+    }
+  }
+
+  const handleUnapprove = async (index: number) => {
+    if (!recordId) return
+    try {
+      await interviewApi.unapproveQuestion(recordId, index)
+      const updated = [...questions]
+      updated[index] = { ...updated[index], status: undefined }
+      setQuestions(updated)
+      message.success('已取消入库')
+    } catch {
+      message.error('取消入库失败')
+    }
+  }
+
+  const toggleSelect = (index: number) => {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIndices.size === questions.length) {
+      setSelectedIndices(new Set())
+    } else {
+      setSelectedIndices(new Set(questions.map((_, i) => i)))
+    }
+  }
+
+  const handleBatchApprove = async () => {
+    if (!recordId || selectedIndices.size === 0) return
+    const indices = Array.from(selectedIndices).filter(
+      (i) => questions[i].status !== 'APPROVED'
+    )
+    if (indices.length === 0) {
+      message.warning('所选题目均已入库')
+      return
+    }
+    try {
+      await interviewApi.batchApproveQuestions(recordId, indices)
+      const updated = [...questions]
+      indices.forEach((i) => {
+        updated[i] = { ...updated[i], status: 'APPROVED' }
+      })
+      setQuestions(updated)
+      setSelectedIndices(new Set())
+      message.success(`已批量入库 ${indices.length} 道题目`)
+    } catch {
+      message.error('批量入库失败')
+    }
+  }
+
+  const handleBatchUnapprove = async () => {
+    if (!recordId || selectedIndices.size === 0) return
+    const indices = Array.from(selectedIndices).filter(
+      (i) => questions[i].status === 'APPROVED'
+    )
+    if (indices.length === 0) {
+      message.warning('所选题目均未入库')
+      return
+    }
+    try {
+      await interviewApi.batchUnapproveQuestions(recordId, indices)
+      const updated = [...questions]
+      indices.forEach((i) => {
+        updated[i] = { ...updated[i], status: undefined }
+      })
+      setQuestions(updated)
+      setSelectedIndices(new Set())
+      message.success(`已批量取消入库 ${indices.length} 道题目`)
+    } catch {
+      message.error('批量取消入库失败')
     }
   }
 
@@ -243,9 +321,34 @@ const GenerateQuestions = () => {
             title="生成结果"
             extra={
               questions.length > 0 && (
-                <Button icon={<CopyOutlined />} onClick={handleCopy}>
-                  复制全部
-                </Button>
+                <Space>
+                  <Checkbox
+                    checked={selectedIndices.size === questions.length}
+                    indeterminate={selectedIndices.size > 0 && selectedIndices.size < questions.length}
+                    onChange={toggleSelectAll}
+                  >
+                    全选
+                  </Checkbox>
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={handleBatchApprove}
+                    disabled={selectedIndices.size === 0}
+                  >
+                    批量入库
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    onClick={handleBatchUnapprove}
+                    disabled={selectedIndices.size === 0}
+                  >
+                    批量取消入库
+                  </Button>
+                  <Button icon={<CopyOutlined />} onClick={handleCopy}>
+                    复制全部
+                  </Button>
+                </Space>
               )
             }
           >
@@ -259,11 +362,27 @@ const GenerateQuestions = () => {
                 dataSource={questions}
                 renderItem={(item, index) => (
                   <List.Item
-                    actions={
-                      item.status === 'APPROVED'
-                        ? [<Tag color="green">已入库</Tag>]
+                    actions={[
+                      <Checkbox
+                        key="select"
+                        checked={selectedIndices.has(index)}
+                        onChange={() => toggleSelect(index)}
+                      />,
+                      ...(item.status === 'APPROVED'
+                        ? [
+                            <Button
+                              key="unapprove"
+                              type="link"
+                              danger
+                              icon={<CloseOutlined />}
+                              onClick={() => handleUnapprove(index)}
+                            >
+                              取消入库
+                            </Button>,
+                            <Tag color="green" key="tag">已入库</Tag>,
+                          ]
                         : item.status === 'REJECTED'
-                          ? [<Tag color="default">已弃用</Tag>]
+                          ? [<Tag color="default" key="tag">已弃用</Tag>]
                           : [
                               <Button
                                 key="approve"
@@ -282,8 +401,8 @@ const GenerateQuestions = () => {
                               >
                                 弃用
                               </Button>,
-                            ]
-                    }
+                            ]),
+                    ]}
                   >
                     <List.Item.Meta
                       title={

@@ -7,6 +7,7 @@
 package com.smarthr.controller.interview;
 
 import com.smarthr.dto.ApiResponse;
+import com.smarthr.dto.interview.BatchQuestionIndicesRequest;
 import com.smarthr.dto.interview.GenerateQuestionsRequest;
 import com.smarthr.dto.interview.InterviewRecordDTO;
 import com.smarthr.security.UserPrincipal;
@@ -122,6 +123,42 @@ public class InterviewController {
             @AuthenticationPrincipal UserPrincipal user) {
         interviewQuestionService.rejectQuestion(id, index, user.getId());
         return ResponseEntity.ok(ApiResponse.successMessage("题目已弃用"));
+    }
+
+    /**
+     * 取消题目入库
+     */
+    @PostMapping("/records/{id}/questions/{index}/unapprove")
+    public ResponseEntity<ApiResponse<Void>> unapproveQuestion(
+            @PathVariable Long id,
+            @PathVariable int index,
+            @AuthenticationPrincipal UserPrincipal user) {
+        interviewQuestionService.unapproveQuestion(id, index, user.getId());
+        return ResponseEntity.ok(ApiResponse.successMessage("题目已取消入库"));
+    }
+
+    /**
+     * 批量入库
+     */
+    @PostMapping("/records/{id}/questions/batch-approve")
+    public ResponseEntity<ApiResponse<Void>> batchApproveQuestions(
+            @PathVariable Long id,
+            @Valid @RequestBody BatchQuestionIndicesRequest request,
+            @AuthenticationPrincipal UserPrincipal user) {
+        interviewQuestionService.batchApproveQuestions(id, request.getIndices(), user.getId());
+        return ResponseEntity.ok(ApiResponse.successMessage("题目已批量入库"));
+    }
+
+    /**
+     * 批量取消入库
+     */
+    @PostMapping("/records/{id}/questions/batch-unapprove")
+    public ResponseEntity<ApiResponse<Void>> batchUnapproveQuestions(
+            @PathVariable Long id,
+            @Valid @RequestBody BatchQuestionIndicesRequest request,
+            @AuthenticationPrincipal UserPrincipal user) {
+        interviewQuestionService.batchUnapproveQuestions(id, request.getIndices(), user.getId());
+        return ResponseEntity.ok(ApiResponse.successMessage("题目已批量取消入库"));
     }
 }
 

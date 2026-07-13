@@ -7,12 +7,16 @@
  */
 package com.smarthr.service.graph;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthr.entity.SkillNode;
 import com.smarthr.repository.SkillRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -21,7 +25,35 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SkillGraphService {
 
+    private static final String CACHE_ALL = "skill:all";
+    private static final String CACHE_CATEGORIES = "skill:categories";
+    // 技能图谱通过 Neo4j 脚本直接写入，应用层无写入口，无法主动失效，用长 TTL 兜底
+    private static final Duration SKILL_TTL = Duration.ofHours(24);
+
     private final SkillRepository skillRepository;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    private String getJson(String key) {
+        return redisTemplate.opsForValue().get(key);
+    }
+
+    // 序列化为 JSON 字符串存入 Redis，便于调试和跨语言读取
+    private void setJson(String key, Object value, Duration ttl) {
+        try {
+            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(value), ttl);
+        } catch (Exception e) {
+            log.warn("Failed to write cache key {}: {}", key, e.getMessage());
+        }
+    }
+
+    private void deleteCache(String key) {
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("Failed to delete cache key {}: {}", key, e.getMessage());
+        }
+    }
 
     /**
      * 从文本中提取技能
@@ -222,7 +254,17 @@ public class SkillGraphService {
      * 获取所有技能分类
      */
     public Map<String, List<String>> getSkillsByCategory() {
-        Map<String, List<String>> result = new HashMap<>();
+        // 先查 Redis 缓存，命中直接返回，避免 8 次 Neo4j 分类查询
+        try {
+            String json = getJson(CACHE_CATEGORIES);
+            if (json != null) {
+                return objectMapper.readValue(json, new TypeReference<Map<String, List<String>>>() {});
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read skill categories cache: {}", e.getMessage());
+        }
+
+        Map<String, List<String>> result = new LinkedHashMap<>();
         String[] categories = {"BACKEND", "FRONTEND", "DATABASE", "DEVOPS", "AI", "TESTING", "MANAGEMENT", "GENERAL"};
 
         for (String category : categories) {
@@ -230,6 +272,8 @@ public class SkillGraphService {
             result.put(category, skills.stream().map(SkillNode::getName).collect(Collectors.toList()));
         }
 
+        // 写入缓存，TTL 兜底（应用外写入无法主动失效）
+        setJson(CACHE_CATEGORIES, result, SKILL_TTL);
         return result;
     }
 
@@ -258,8 +302,20 @@ public class SkillGraphService {
     /**
      * 获取所有技能节点
      */
+    // 每次简历上传都会调用此方法做全量技能匹配，缓存收益最大
     public List<SkillNode> getAllSkills() {
-        return skillRepository.findAllSkills();
+        try {
+            String json = getJson(CACHE_ALL);
+            if (json != null) {
+                return objectMapper.readValue(json, new TypeReference<List<SkillNode>>() {});
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read skill cache: {}", e.getMessage());
+        }
+
+        List<SkillNode> skills = skillRepository.findAllSkills();
+        setJson(CACHE_ALL, skills, SKILL_TTL);
+        return skills;
     }
 
     /**
