@@ -34,6 +34,17 @@ export interface AuthResponse {
   user: User
 }
 
+export interface UpdateProfileRequest {
+  username: string
+  email: string
+  role: string
+}
+
+export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
+}
+
 export const authApi = {
   login: async (data: LoginRequest): Promise<AuthResponse> => {
     const res: AuthResponseData = await request.post('/auth/login', data)
@@ -57,5 +68,13 @@ export const authApi = {
 
   getCurrentUser: (): Promise<User> => {
     return request.get('/auth/me')
+  },
+
+  updateProfile: (data: UpdateProfileRequest): Promise<User> => {
+    return request.put('/auth/profile', data)
+  },
+
+  changePassword: (data: ChangePasswordRequest): Promise<void> => {
+    return request.put('/auth/password', data)
   },
 }

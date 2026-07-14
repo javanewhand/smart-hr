@@ -95,6 +95,7 @@ const MainLayout = () => {
       key: 'settings',
       icon: <SettingOutlined />,
       label: '个人设置',
+      onClick: () => navigate('/settings'),
     },
     {
       type: 'divider',

@@ -22,6 +22,7 @@ const SkillGraph = lazy(() => import('./pages/HR/SkillGraph'))
 const InterviewerDashboard = lazy(() => import('./pages/Interviewer/Dashboard'))
 const GenerateQuestions = lazy(() => import('./pages/Interviewer/GenerateQuestions'))
 const QuestionHistory = lazy(() => import('./pages/Interviewer/QuestionHistory'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 // 加载中组件
 const LoadingFallback = () => (
@@ -159,6 +160,16 @@ function App() {
               }
             />
           </Route>
+
+          {/* 个人设置 */}
+          <Route
+            path="settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* 404 页面 */}

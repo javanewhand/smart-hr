@@ -9,8 +9,10 @@ package com.smarthr.controller;
 
 import com.smarthr.dto.ApiResponse;
 import com.smarthr.dto.auth.AuthResponse;
+import com.smarthr.dto.auth.ChangePasswordRequest;
 import com.smarthr.dto.auth.LoginRequest;
 import com.smarthr.dto.auth.RegisterRequest;
+import com.smarthr.dto.auth.UpdateProfileRequest;
 import com.smarthr.security.UserPrincipal;
 import com.smarthr.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -72,7 +74,26 @@ public class AuthController {
             return ApiResponse.unauthorized("未登录或 Token 已失效");
         }
         log.info("User logout: {}", userPrincipal.getUsername());
-        // JWT 是无状态的，登出只需客户端清除 Token。可扩展为黑名单机制。
         return ApiResponse.successMessage("登出成功");
+    }
+
+    @PutMapping("/profile")
+    @Operation(summary = "更新个人资料", description = "更新当前登录用户的用户名、邮箱、角色")
+    public ApiResponse<AuthResponse.UserInfo> updateProfile(
+            @Valid @RequestBody UpdateProfileRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        log.info("Update profile for user: {}", userPrincipal.getUsername());
+        AuthResponse.UserInfo updated = authService.updateProfile(userPrincipal.getId(), request);
+        return ApiResponse.success(updated, "个人资料更新成功");
+    }
+
+    @PutMapping("/password")
+    @Operation(summary = "修改密码", description = "验证原密码后修改为新密码")
+    public ApiResponse<Void> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        log.info("Change password for user: {}", userPrincipal.getUsername());
+        authService.changePassword(userPrincipal.getId(), request);
+        return ApiResponse.successMessage("密码修改成功");
     }
 }

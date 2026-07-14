@@ -9,8 +9,10 @@ package com.smarthr.service;
 
 import com.smarthr.config.JwtProperties;
 import com.smarthr.dto.auth.AuthResponse;
+import com.smarthr.dto.auth.ChangePasswordRequest;
 import com.smarthr.dto.auth.LoginRequest;
 import com.smarthr.dto.auth.RegisterRequest;
+import com.smarthr.dto.auth.UpdateProfileRequest;
 import com.smarthr.entity.User;
 import com.smarthr.repository.UserRepository;
 import com.smarthr.security.JwtTokenProvider;
@@ -131,6 +133,61 @@ public class AuthService {
                 .role(userPrincipal.getRole())
                 .preferredModel(userPrincipal.getPreferredModel())
                 .build();
+    }
+
+    /**
+     * 更新用户资料
+     */
+    @Transactional
+    public AuthResponse.UserInfo updateProfile(Long userId, UpdateProfileRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        if (!user.getUsername().equals(request.getUsername())
+                && userRepository.existsByUsername(request.getUsername())) {
+            throw new RuntimeException("用户名已被使用: " + request.getUsername());
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isEmpty()
+                && !request.getEmail().equals(user.getEmail())
+                && userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("邮箱已被使用: " + request.getEmail());
+        }
+
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+
+        if (request.getRole() != null && !request.getRole().isEmpty()) {
+            user.setRole(User.UserRole.valueOf(request.getRole()));
+        }
+
+        user = userRepository.save(user);
+        log.info("User profile updated: {}", user.getUsername());
+
+        return AuthResponse.UserInfo.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .preferredModel(user.getPreferredModel())
+                .build();
+    }
+
+    /**
+     * 修改密码
+     */
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new RuntimeException("原密码不正确");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Password changed for user: {}", user.getUsername());
     }
 
     /**
